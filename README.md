@@ -17,7 +17,7 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Barcode product lookup
 
-The scanner checks the optional OpenMRP India catalog first, then Open Food Facts. A matching OpenMRP record with a listed MRP is added to the cart using that MRP and saved in this browser for later scans. Check the price against your store: listed MRP may not be the actual selling price. If no MRP is available, the scanner asks for the missing price. If neither catalog recognizes the barcode, it asks for the product name and price.
+The scanner checks the optional OpenMRP India catalog, Open Food Facts product details, and Open Prices community reports. When OpenMRP has a listed MRP, or Open Prices has a recent (within 180 days) price in INR reported at an Indian location, the product is added automatically and saved in this browser for later scans. Open Prices records are community-submitted, may be for another shop, and can be incomplete; verify before checkout. If no suitable price is found, the app asks for the missing price rather than guessing.
 
 ### Enable OpenMRP
 
