@@ -152,7 +152,12 @@ function ScannerModal({ isOpen, onClose }) {
             signal: controller.signal,
           }
         );
-        if (!response.ok) return null;
+        if (
+          !response.ok ||
+          !response.headers.get("content-type")?.includes("application/json")
+        ) {
+          return null;
+        }
 
         const data = await response.json();
         if (!data.found || !data.product) return null;
@@ -239,6 +244,9 @@ function ScannerModal({ isOpen, onClose }) {
 
         const data = await response.json();
         return data.product || null;
+      } catch (productLookupError) {
+        console.error(productLookupError);
+        return null;
       } finally {
         window.clearTimeout(timeout);
       }
