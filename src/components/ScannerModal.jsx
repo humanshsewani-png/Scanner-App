@@ -18,13 +18,12 @@ function ScannerModal({ isOpen, onClose }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const [retryKey, setRetryKey] = useState(0);
 
-  // Keep the latest cart action without restarting the camera after cart updates.
   useEffect(() => {
     addToCartRef.current = addToCart;
   }, [addToCart]);
 
-  // Clear the toast after it has been visible briefly.
   useEffect(() => {
     if (!message) return undefined;
 
@@ -67,7 +66,6 @@ function ScannerModal({ isOpen, onClose }) {
             const barcode = result.getText();
             const now = Date.now();
 
-            // Ignore rapid repeat readings while a barcode is held in view.
             if (
               barcode === lastScanRef.current.code &&
               now - lastScanRef.current.time < 2000
@@ -101,7 +99,7 @@ function ScannerModal({ isOpen, onClose }) {
       } catch (err) {
         console.error(err);
         setError(
-          "Unable to start the scanner. Allow camera access, then close and reopen the scanner."
+          "Unable to start the scanner. Allow camera access, then try again."
         );
         setStatus("error");
       }
@@ -114,7 +112,7 @@ function ScannerModal({ isOpen, onClose }) {
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
-  }, [isOpen]);
+  }, [isOpen, retryKey]);
 
   function handleClose() {
     controlsRef.current?.stop();
@@ -150,13 +148,9 @@ function ScannerModal({ isOpen, onClose }) {
               <p>{error}</p>
               <button
                 className="scanner-retry"
-                onClick={() => {
-                  setError("");
-                  setStatus("starting");
-                  handleClose();
-                }}
+                onClick={() => setRetryKey((current) => current + 1)}
               >
-                Close and try again
+                Try Again
               </button>
             </div>
           ) : (
