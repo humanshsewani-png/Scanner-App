@@ -6,6 +6,30 @@ import { Camera, X, AlertCircle } from "lucide-react";
 import products from "../data/products";
 import { useCart } from "../context/CartContext";
 
+const SAVED_PRODUCTS_STORAGE_KEY = "scanner-app-saved-products";
+
+function getSavedProducts() {
+  try {
+    const savedProducts = JSON.parse(
+      window.localStorage.getItem(SAVED_PRODUCTS_STORAGE_KEY) || "[]"
+    );
+    return Array.isArray(savedProducts) ? savedProducts : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProductForNextTime(product) {
+  const savedProducts = getSavedProducts().filter(
+    (item) => String(item.barcode) !== String(product.barcode)
+  );
+  savedProducts.push(product);
+  window.localStorage.setItem(
+    SAVED_PRODUCTS_STORAGE_KEY,
+    JSON.stringify(savedProducts)
+  );
+}
+
 function getStoreCategory(categories = "", productType = "food") {
   const text = categories.toLowerCase();
 
@@ -151,9 +175,9 @@ function ScannerModal({ isOpen, onClose }) {
       }
       lastScanRef.current = { code: barcode, time: now };
 
-      const localProduct = products.find(
-        (item) => String(item.barcode) === barcode
-      );
+      const localProduct =
+        products.find((item) => String(item.barcode) === barcode) ||
+        getSavedProducts().find((item) => String(item.barcode) === barcode);
 
       if (localProduct) {
         addToCartRef.current(localProduct);
@@ -240,13 +264,25 @@ function ScannerModal({ isOpen, onClose }) {
       name: pendingName.trim(),
       price,
     };
+    let savedForNextTime = true;
+    try {
+      saveProductForNextTime(productToAdd);
+    } catch (storageError) {
+      console.error(storageError);
+      savedForNextTime = false;
+    }
+
     addToCartRef.current(productToAdd);
     productEntryOpenRef.current = false;
     setPendingProduct(null);
     setPendingName("");
     setPendingPrice("");
     setMessageType("success");
-    setMessage(productToAdd.name + " added to cart");
+    setMessage(
+      savedForNextTime
+        ? productToAdd.name + " added to cart and saved for next scan"
+        : productToAdd.name + " added to cart, but could not be saved for next time"
+    );
   }
 
   function handleCancelProductEntry() {
