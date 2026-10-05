@@ -135,7 +135,6 @@ function ScannerModal({ isOpen, onClose }) {
           ? (Number(product.mrp) / 100).toFixed(2)
           : ""
       );
-      setPendingPrice("");
       productEntryOpenRef.current = true;
     }
 
@@ -170,6 +169,47 @@ function ScannerModal({ isOpen, onClose }) {
           mrp: Number.isFinite(mrpPaise) && mrpPaise > 0 ? mrpPaise : null,
           product_type: "food",
         };
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    async function findRecentIndianPrice(barcode) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 10000);
+      const recentDate = new Date();
+      recentDate.setDate(recentDate.getDate() - 180);
+
+      try {
+        const params = new URLSearchParams({
+          product_code: barcode,
+          currency: "INR",
+          type: "PRODUCT",
+          duplicate_of__isnull: "true",
+          date__gte: recentDate.toISOString().slice(0, 10),
+          size: "100",
+        });
+        const response = await fetch(
+          "https://prices.openfoodfacts.org/api/v1/prices?" + params,
+          {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          }
+        );
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        const matchingPrices = (data.items || []).filter(
+          (item) =>
+            item.currency === "INR" &&
+            Number(item.price) > 0 &&
+            item.location?.osm_address_country_code?.toLowerCase() === "in"
+        );
+        matchingPrices.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        return matchingPrices[0] || null;
+      } catch (priceLookupError) {
+        console.error(priceLookupError);
+        return null;
       } finally {
         window.clearTimeout(timeout);
       }
@@ -241,52 +281,76 @@ function ScannerModal({ isOpen, onClose }) {
         const indianProduct = await findOpenMrpProduct(barcode);
         if (cancelled) return;
 
-        if (indianProduct) {
-          openProductEntry(barcode, indianProduct);
-          if (indianProduct.mrp) {
-            const productToAdd = {
-              id: barcode,
-              barcode,
-              name: indianProduct.name,
-              brand: indianProduct.brand,
-              category: getStoreCategory(indianProduct.category),
-              size: indianProduct.size,
-              emoji: "📦",
-              price: indianProduct.mrp / 100,
-            };
-            try {
-              saveProductForNextTime(productToAdd);
-            } catch (storageError) {
-              console.error(storageError);
-            }
-            addToCartRef.current(productToAdd);
-            productEntryOpenRef.current = false;
-            setPendingProduct(null);
-            setMessageType("success");
-            setMessage(
-              productToAdd.name +
-                " added to cart at listed MRP ₹" +
-                productToAdd.price.toFixed(2)
-            );
-            return;
+        const onlineProduct = indianProduct
+          ? null
+          : await findOnlineProduct(barcode);
+        if (cancelled) return;
+
+        const knownProduct = indianProduct || onlineProduct;
+        const communityPrice = indianProduct?.mrp
+          ? null
+          : await findRecentIndianPrice(barcode);
+        if (cancelled) return;
+
+        const priceAmount = indianProduct?.mrp
+          ? indianProduct.mrp / 100
+          : communityPrice
+            ? Number(communityPrice.price)
+            : null;
+
+        if (priceAmount !== null) {
+          const productToAdd = {
+            id: barcode,
+            barcode,
+            name:
+              knownProduct?.name ||
+              knownProduct?.product_name ||
+              communityPrice?.product_name ||
+              "Scanned product",
+            brand:
+              knownProduct?.brand ||
+              knownProduct?.brands?.split(",")[0]?.trim() ||
+              communityPrice?.product?.brands?.split(",")[0]?.trim() ||
+              "",
+            category: getStoreCategory(
+              knownProduct?.category || knownProduct?.categories || "",
+              knownProduct?.product_type || "food"
+            ),
+            size: knownProduct?.size || knownProduct?.quantity || "",
+            emoji: "📦",
+            price: priceAmount,
+          };
+          try {
+            saveProductForNextTime(productToAdd);
+          } catch (storageError) {
+            console.error(storageError);
           }
 
-          setMessageType("info");
+          addToCartRef.current(productToAdd);
+          setPendingProduct(null);
+          setPendingName("");
+          setPendingPrice("");
+          productEntryOpenRef.current = false;
+          setMessageType("success");
           setMessage(
-            "Found in the Indian catalog. Confirm the product name and enter your store price."
+            productToAdd.name +
+              " added to cart at ₹" +
+              productToAdd.price.toFixed(2) +
+              (indianProduct?.mrp
+                ? " (listed MRP)"
+                : " (recent community price from " +
+                  communityPrice.date +
+                  ")")
           );
           return;
         }
 
-        const onlineProduct = await findOnlineProduct(barcode);
-        if (cancelled) return;
-
-        openProductEntry(barcode, onlineProduct);
-        setMessageType(onlineProduct ? "info" : "error");
+        openProductEntry(barcode, knownProduct);
+        setMessageType(knownProduct ? "info" : "error");
         setMessage(
-          onlineProduct
-            ? "Product details found. Enter your store price below."
-            : "No catalog match. Enter the product name and store price below."
+          knownProduct
+            ? "Product found, but no recent Indian price was listed. Enter the store price."
+            : "No recent Indian price was found. Enter product details and store price."
         );
       } catch (lookupError) {
         if (cancelled) return;
