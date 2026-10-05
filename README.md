@@ -1,32 +1,60 @@
-# React + Vite
+# Smart Retail Scanner
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A beginner-friendly React demo for scanning product barcodes, adding products to a shopping cart, and showing the cart total.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Scans common retail barcodes and QR codes with the device camera.
+- Adds products from the demo catalog to the cart.
+- Looks up product details with Open Food Facts, and optionally OpenMRP for Indian product names and MRP.
+- Looks for a recent Open Prices report in INR from an Indian location; when a matching price or MRP is available, it adds the product automatically.
+- Remembers a product entered manually in the same browser so the next scan of that barcode can add it directly.
+- Shows a confirmation after a product is added.
 
-## React Compiler
+## Run the app
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Requirements: Node.js 20.19 or newer and npm.
 
-## Expanding the Oxlint configuration
+1. Clone or open this repository in GitHub Codespaces.
+2. In the project terminal, install dependencies:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+   ```bash
+   npm ci --legacy-peer-deps
+   ```
 
-## Barcode product lookup
+3. Start the development server:
 
-The scanner checks the optional OpenMRP India catalog, Open Food Facts product details, and Open Prices community reports. When OpenMRP has a listed MRP, or Open Prices has a recent (within 180 days) price in INR reported at an Indian location, the product is added automatically and saved in this browser for later scans. Open Prices records are community-submitted, may be for another shop, and can be incomplete; verify before checkout. If no suitable price is found, the app asks for the missing price rather than guessing.
+   ```bash
+   npm run dev -- --host 0.0.0.0
+   ```
 
-### Enable OpenMRP
+4. Open the forwarded app port in a browser and allow camera access. Camera scanning needs a secure page (HTTPS in Codespaces, or localhost).
 
-OpenMRP requires an API key. Keep it private; do not put it in React code or commit it to GitHub.
+## Product and price data
 
-1. Get an OpenMRP API key from the OpenMRP project, if its developer signup and API are available.
-2. In the Codespace, add `OPENMRP_API_KEY` as a Codespaces secret, then restart the Codespace so the environment variable is available. For local development, put `OPENMRP_API_KEY=your_key_here` in an untracked `.env.local` file at the project root.
-3. Restart the Vite development server.
+The catalog in `src/data/products.js` is sample data for demonstrating the cart. Replace it with your own product catalog before using the app for real shopping.
 
-The Vite development server forwards requests to OpenMRP and adds the key server-side. The key is not sent in the browser bundle. This proxy is for development in the Codespace; a production deployment needs a server-side API route of its own. If OpenMRP is unavailable or the key is missing, the scanner continues to Open Food Facts and its manual-entry fallback.
+The scanner can use these online sources:
 
-Product catalogs can be incomplete. Barcode recognition only reads the number; catalog records supply the product details. Confirm prices and product matches before relying on them for checkout.
+- [Open Food Facts](https://world.openfoodfacts.org/) for community-maintained product details.
+- [Open Prices](https://prices.openfoodfacts.org/) for community-reported prices. This app only accepts prices reported in INR at an Indian location within the last 180 days.
+- [OpenMRP](https://github.com/openmrp-in/openmrp) for Indian product details and listed MRP, when its API is available and an API key is configured.
+
+These sources do not cover every barcode. Community prices can be from another shop, and MRP can differ from the selling price. When the app cannot find a suitable price, it asks for the price instead of guessing. Products entered manually are saved only in that browser and device.
+
+### Optional OpenMRP API key
+
+OpenMRP lookup is optional. Keep its API key private and never add it to React code or commit it to GitHub.
+
+For local development, add `OPENMRP_API_KEY=your_key_here` to an untracked `.env.local` file in the project root, then restart Vite. In Codespaces, configure the same name as a Codespaces secret and restart the Codespace. The Vite development server forwards the key on the server side. A production deployment needs its own server-side API endpoint; this development proxy is not a production backend.
+
+## Checks
+
+- `npm run lint` checks code style and common issues.
+- `npm run build` creates a production build.
+
+There is no automated camera test. Test camera scanning in a browser with camera permission and a real barcode.
+
+## Share this project
+
+The repository is public. The current scanner work is on the `codex/scanner-success-popup` branch and in pull request #1. Until that pull request is merged, share the pull request link to show the scanner changes; the repository's default `main` branch does not yet contain them.
