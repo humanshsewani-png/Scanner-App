@@ -562,8 +562,8 @@ function ScannerModal({ isOpen, onClose }) {
               />
             </label>
             <small>
-              Product details may come from Open Food Facts. Its catalog may not
-              include every item, and it does not provide your store's checkout price.
+              Prices can come from listed MRP or recent community price reports.
+              Reports may be incomplete or from another shop; check the price at checkout.
             </small>
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
               <button
