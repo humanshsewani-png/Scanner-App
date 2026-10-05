@@ -118,18 +118,65 @@ function ScannerModal({ isOpen, onClose }) {
       setPendingProduct({
         id: barcode,
         barcode,
-        brand: product?.brands?.split(",")[0]?.trim() || "",
-        category: getStoreCategory(product?.categories || "", productType),
-        size: product?.quantity || "",
+        brand:
+          product?.brand ||
+          product?.brands?.split(",")[0]?.trim() ||
+          "",
+        category: getStoreCategory(
+          product?.category || product?.categories || "",
+          productType
+        ),
+        size: product?.size || product?.quantity || "",
         emoji: "📦",
       });
-      setPendingName(product?.product_name || "");
+      setPendingName(product?.name || product?.product_name || "");
+      setPendingPrice(
+        product?.mrp && Number.isFinite(Number(product.mrp))
+          ? (Number(product.mrp) / 100).toFixed(2)
+          : ""
+      );
       setPendingPrice("");
       productEntryOpenRef.current = true;
     }
 
+    async function findOpenMrpProduct(barcode) {
+      if (!/^\d{8,14}$/.test(barcode)) return null;
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const response = await fetch(
+          "/api/openmrp/v1/product/" + encodeURIComponent(barcode),
+          {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          }
+        );
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        if (!data.found || !data.product) return null;
+
+        const variant =
+          data.variants?.find((item) => String(item.barcode) === barcode) ||
+          data.variants?.[0];
+        const mrpPaise = Number(variant?.mrp_paise);
+        return {
+          name: data.product.name || variant?.label || "",
+          brand: data.brand?.name || data.product.brand || "",
+          category: data.product.category || "",
+          size: variant?.pack_size || variant?.label || "",
+          mrp: Number.isFinite(mrpPaise) && mrpPaise > 0 ? mrpPaise : null,
+          product_type: "food",
+        };
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
     async function findOnlineProduct(barcode) {
-      if (!/^\\d{8,14}$/.test(barcode)) {
+      if (!/^\d{8,14}$/.test(barcode)) {
         return null;
       }
 
@@ -191,6 +238,46 @@ function ScannerModal({ isOpen, onClose }) {
       setMessage("Looking up this barcode online...");
 
       try {
+        const indianProduct = await findOpenMrpProduct(barcode);
+        if (cancelled) return;
+
+        if (indianProduct) {
+          openProductEntry(barcode, indianProduct);
+          if (indianProduct.mrp) {
+            const productToAdd = {
+              id: barcode,
+              barcode,
+              name: indianProduct.name,
+              brand: indianProduct.brand,
+              category: getStoreCategory(indianProduct.category),
+              size: indianProduct.size,
+              emoji: "📦",
+              price: indianProduct.mrp / 100,
+            };
+            try {
+              saveProductForNextTime(productToAdd);
+            } catch (storageError) {
+              console.error(storageError);
+            }
+            addToCartRef.current(productToAdd);
+            productEntryOpenRef.current = false;
+            setPendingProduct(null);
+            setMessageType("success");
+            setMessage(
+              productToAdd.name +
+                " added to cart at listed MRP ₹" +
+                productToAdd.price.toFixed(2)
+            );
+            return;
+          }
+
+          setMessageType("info");
+          setMessage(
+            "Found in the Indian catalog. Confirm the product name and enter your store price."
+          );
+          return;
+        }
+
         const onlineProduct = await findOnlineProduct(barcode);
         if (cancelled) return;
 
